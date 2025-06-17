@@ -57,6 +57,16 @@ Once the startup script completes, you can access:
 - **💾 MongoDB**: mongodb://localhost:27017
 - **📦 MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
 
+## Pre-Created Development Accounts
+
+The startup script automatically creates verified development accounts:
+
+- **👑 Admin Account**: `admin@huly.local` / `admin123`
+- **👨‍💻 Developer Account**: `dev@huly.local` / `dev123`
+- **🧪 Test Account**: `test@huly.local` / `test123`
+
+**✅ All accounts are pre-verified** - no email confirmation needed!
+
 ## Development Workflow
 
 1. **Start Development**:
@@ -159,10 +169,34 @@ cd ../../dev/prod
 rushx dev-server
 ```
 
+## Email Verification in Development
+
+🔧 **Email Verification Bypass**: Since local development doesn't support email sending, the account service automatically confirms all email addresses when no `MAIL_URL` is configured.
+
+If you get stuck at "Email confirmation sent" page:
+
+1. **Clear browser data**: Clear cookies/localStorage for localhost:8080
+2. **Restart services**: `./stop-huly-dev.sh && ./start-huly-simple.sh`
+3. **Manual confirmation**: Run `node confirm-emails.js` (if MongoDB module available)
+4. **Direct database fix**:
+   ```bash
+   docker exec huly-mongo mongosh account --eval "
+     db.socialId.updateMany(
+       {type: 'EMAIL', verifiedOn: null},
+       {\$set: {verifiedOn: new Date().getTime()}}
+     )"
+   ```
+
 ## Next Steps
 
 1. Navigate to http://localhost:8080
-2. Click "Sign Up" and create your first account
-3. Create a workspace to start using Huly Platform
+2. **Option A**: Login with pre-created accounts:
+   - Use `admin@huly.local` / `admin123` for admin access
+   - Use `dev@huly.local` / `dev123` for regular development
+   - Use `test@huly.local` / `test123` for testing
+3. **Option B**: Click "Sign Up" and create your own account
+   - ✅ **Email verification is automatic in development**
+   - No email confirmation required
+4. Create a workspace to start using Huly Platform
 
 Happy coding! 🎉

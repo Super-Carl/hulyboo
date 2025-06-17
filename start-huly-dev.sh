@@ -183,7 +183,6 @@ cd ../..
 print_status "Starting Transactor Service on port 3333..."
 cd pods/server
 SERVER_PORT=3333 \
-QUEUE_CONFIG="" \
 UPLOAD_URL="/files" \
 FULLTEXT_URL="" \
 ELASTIC_INDEX_NAME="local_storage_index" \
