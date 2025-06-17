@@ -85,6 +85,9 @@ cleanup() {
     kill_port 3333  # Transactor service
     kill_port 8080  # Frontend dev server
     
+    # Stop infrastructure containers
+    docker stop huly-mongo huly-minio huly-kafka 2>/dev/null || true
+    
     exit 0
 }
 
@@ -122,11 +125,9 @@ echo ""
 echo "🐳 Starting infrastructure services..."
 
 # Stop and remove existing containers
-docker stop huly-mongo 2>/dev/null || true
-docker rm huly-mongo 2>/dev/null || true
-docker stop huly-minio 2>/dev/null || true
-docker rm huly-minio 2>/dev/null || true
-# Also clean up any other minio containers that might conflict
+docker stop huly-mongo huly-minio huly-kafka 2>/dev/null || true
+docker rm huly-mongo huly-minio huly-kafka 2>/dev/null || true
+# Also clean up any other containers that might conflict
 docker stop minio 2>/dev/null || true
 docker rm minio 2>/dev/null || true
 
@@ -144,9 +145,40 @@ docker run -d --name huly-minio \
     -e "MINIO_SECRET_KEY=minioadmin" \
     minio/minio server /data --console-address ":9001" >/dev/null
 
+# Start Kafka (required for workspace service)
+print_status "Starting Kafka..."
+docker run -d --name huly-kafka \
+    -p 9092:9092 \
+    -e KAFKA_NODE_ID=1 \
+    -e KAFKA_PROCESS_ROLES=broker,controller \
+    -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+    -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+    -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+    -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+    -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
+    -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+    -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
+    -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
+    apache/kafka:latest >/dev/null 2>&1 || {
+        print_warning "Kafka failed to start, trying Confluent image..."
+        docker rm -f huly-kafka 2>/dev/null || true
+        docker run -d --name huly-kafka \
+            -p 9092:9092 \
+            -e KAFKA_BROKER_ID=1 \
+            -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092 \
+            -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
+            -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+            -e KAFKA_AUTO_CREATE_TOPICS_ENABLE=true \
+            confluentinc/cp-kafka:latest >/dev/null 2>&1 || {
+                print_error "Could not start Kafka. Workspace initialization will not work."
+                exit 1
+            }
+    }
+
 # Wait for infrastructure to be ready
 wait_for_service 27017 "MongoDB"
 wait_for_service 9000 "MinIO"
+wait_for_service 9092 "Kafka"
 
 # Step 3: Start backend services
 echo ""
@@ -164,6 +196,8 @@ export ACCOUNTS_URL="http://localhost:3000"
 export FRONT_URL="http://localhost:8080"
 export TRANSACTOR_URL="ws://localhost:3333"
 export MODEL_JSON="$(pwd)/models/all/bundle/model.json"
+export QUEUE_CONFIG="localhost:9092"
+export REGION_INFO="huly|Huly Platform"
 
 # Create logs directory first
 mkdir -p logs
@@ -191,9 +225,18 @@ node bundle/bundle.js > ../../logs/server.log 2>&1 &
 SERVER_PID=$!
 cd ../..
 
+# Start Workspace Service (processes workspace creation)
+print_status "Starting Workspace Service..."
+cd pods/workspace
+WS_OPERATION="all" \
+node bundle/bundle.js > ../../logs/workspace.log 2>&1 &
+WORKSPACE_PID=$!
+cd ../..
+
 # Wait for backend services to start
 wait_for_service 3000 "Account Service"
 wait_for_service 3333 "Transactor Service"
+sleep 3  # Give workspace service time to initialize
 
 # Step 4: Start frontend development server
 echo ""
@@ -220,17 +263,21 @@ echo ""
 echo "📱 Frontend Application: http://localhost:8080"
 echo "🔧 Account Service:      http://localhost:3000" 
 echo "⚙️  Transactor Service:   ws://localhost:3333"
+echo "🏗️  Workspace Service:   (background)"
 echo "💾 MongoDB:              mongodb://localhost:27017"
-echo "📦 MinIO Console:        http://localhost:9001 (admin/admin123)"
+echo "📦 MinIO Console:        http://localhost:9001 (minioadmin/minioadmin)"
+echo "🚀 Kafka Broker:         localhost:9092"
 echo ""
 echo "📊 Service Status:"
 echo "  Account Service PID:    $ACCOUNT_PID"
 echo "  Transactor Service PID: $SERVER_PID" 
+echo "  Workspace Service PID:  $WORKSPACE_PID"
 echo "  Frontend Server PID:    $FRONTEND_PID"
 echo ""
 echo "📄 Logs are available in:"
 echo "  Account:    logs/account.log"
 echo "  Transactor: logs/server.log"
+echo "  Workspace:  logs/workspace.log"
 echo "  Frontend:   logs/frontend.log"
 echo ""
 echo "🛑 Press Ctrl+C to stop all services"
