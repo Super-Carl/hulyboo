@@ -137,6 +137,8 @@ MINIO_ENDPOINT="localhost" \
 MINIO_ACCESS_KEY="minioadmin" \
 MINIO_SECRET_KEY="minioadmin" \
 DISABLE_SIGNUP="false" \
+REGION_INFO="huly|Huly Platform" \
+TRANSACTOR_URL="ws://localhost:3333" \
 node bundle/bundle.js > ../../logs/account.log 2>&1 &
 
 ACCOUNT_PID=$!
@@ -187,6 +189,10 @@ wait_for_port 8080 "Frontend Dev Server"
 echo ""
 echo "👥 Setting up development accounts..."
 ./create-dev-users.sh 2>/dev/null || echo "⚠️  Could not create dev accounts (may already exist)"
+
+echo ""
+echo "🏗️  Creating development workspaces..."
+./create-workspaces.sh 2>/dev/null || echo "⚠️  Could not create dev workspaces (may already exist)"
 
 echo ""
 echo "🎉 Huly Platform Development Environment Ready!"
