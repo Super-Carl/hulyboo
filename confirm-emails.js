@@ -6,7 +6,7 @@
 const { MongoClient } = require('mongodb');
 
 const MONGO_URL = 'mongodb://localhost:27017';
-const DB_NAME = 'account';
+const DB_NAME = 'global-account';
 
 async function confirmAllEmails() {
   console.log('🔧 Confirming all unverified emails in development database...');

@@ -180,7 +180,7 @@ If you get stuck at "Email confirmation sent" page:
 3. **Manual confirmation**: Run `node confirm-emails.js` (if MongoDB module available)
 4. **Direct database fix**:
    ```bash
-   docker exec huly-mongo mongosh account --eval "
+   docker exec huly-mongo mongosh global-account --eval "
      db.socialId.updateMany(
        {type: 'EMAIL', verifiedOn: null},
        {\$set: {verifiedOn: new Date().getTime()}}

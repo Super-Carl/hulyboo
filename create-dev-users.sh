@@ -16,14 +16,17 @@ create_user() {
   
   echo "Creating user: $email"
   
-  # Create signup request
-  curl -s -X POST "$ACCOUNT_URL/signup" \
+  # Create signup request using RPC method
+  curl -s -X POST "$ACCOUNT_URL" \
     -H "Content-Type: application/json" \
     -d "{
-      \"email\": \"$email\",
-      \"password\": \"$password\",
-      \"firstName\": \"$firstName\",
-      \"lastName\": \"$lastName\"
+      \"method\": \"signUp\",
+      \"params\": {
+        \"email\": \"$email\",
+        \"password\": \"$password\",
+        \"firstName\": \"$firstName\",
+        \"lastName\": \"$lastName\"
+      }
     }" > /dev/null
   
   if [ $? -eq 0 ]; then
